@@ -1,7 +1,8 @@
 import type {
   CurrentState, TimelineEvent, SimulationSnapshot,
   LLMGeneratedMessages, LLMConfig, LLMMessageContext, ResidentProfile,
-  EnrichedInterventionOutput, MessageSource,
+  EnrichedInterventionOutput, MessageSource, InterventionOutput,
+  RiskScores, ExplanationOutput,
 } from './types';
 import { DEFAULT_BASELINE, defaultState, computeDeviations } from './baseline';
 import { computeRisks, urgencyBand, buildExplanation } from './risk';
@@ -10,8 +11,9 @@ import { simulate24h } from './simulation';
 import { renderComparisonChart, renderTimelineChart } from './chart';
 import {
   loadLLMConfig, saveLLMConfig, isLLMAvailable,
-  debouncedGenerate, cancelPending,
+  createLLMController,
 } from './engine/llmMessaging';
+import type { LLMStatus } from './engine/llmMessaging';
 import './style.css';
 
 // ── State ───────────────────────────────────────────────────
@@ -21,7 +23,12 @@ let timelineEvents: TimelineEvent[] = [];
 let simSnapshots: SimulationSnapshot[] = [];
 let llmConfig: LLMConfig = loadLLMConfig();
 let lastLLMMessages: LLMGeneratedMessages | null = null;
-let llmLoading = false;
+let simRunning = false;
+
+// Cached outputs for LLM panel re-renders without full update()
+let lastIntervention: InterventionOutput | null = null;
+let lastExplanation: ExplanationOutput | null = null;
+let lastRisks: RiskScores | null = null;
 
 const residentProfile: ResidentProfile = {
   age: 82,
@@ -29,6 +36,32 @@ const residentProfile: ResidentProfile = {
   mobilityBaseline: DEFAULT_BASELINE.mobilityMean,
   cognitiveConcernLevel: 'Low',
 };
+
+// ── LLM Controller (single instance) ────────────────────────
+const llm = createLLMController(600);
+
+// ── Context Signature (meaningful-change gating) ────────────
+let prevSignature = '';
+
+function computeContextSignature(
+  intervention: InterventionOutput,
+  risks: RiskScores,
+  explanation: ExplanationOutput,
+  events: TimelineEvent[]
+): string {
+  const urgency = urgencyBand(risks.overall);
+  const top2 = explanation.topFactors.slice(0, 2).map(f => f.factor).join(',');
+
+  // Last significant event
+  const lastSig = [...events]
+    .reverse()
+    .find(e => e.urgency !== 'Low');
+  const lastEventKey = lastSig
+    ? `${lastSig.label}|${lastSig.urgency}`
+    : 'none';
+
+  return `${intervention.level}|${urgency}|${top2}|${lastEventKey}`;
+}
 
 // ── DOM Setup ───────────────────────────────────────────────
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = buildHTML();
@@ -71,6 +104,7 @@ function setupLLMConfigUI() {
   const modelInput = document.getElementById('llmModel') as HTMLInputElement;
   const testBtn = document.getElementById('btnTestLLM') as HTMLButtonElement;
   const statusEl = document.getElementById('llmStatus')!;
+  const refreshBtn = document.getElementById('btnRefreshLLM') as HTMLButtonElement;
 
   // Init from stored config
   toggle.checked = llmConfig.enabled;
@@ -79,16 +113,18 @@ function setupLLMConfigUI() {
   modelInput.value = llmConfig.model;
   configBody.classList.toggle('hidden', !llmConfig.enabled);
   updateLLMStatusBadge();
+  updateRefreshBtnVisibility();
 
   toggle.addEventListener('change', () => {
     llmConfig.enabled = toggle.checked;
     configBody.classList.toggle('hidden', !toggle.checked);
     saveLLMConfig(llmConfig);
     if (!toggle.checked) {
+      stopLLMWork();
       lastLLMMessages = null;
-      cancelPending();
     }
     updateLLMStatusBadge();
+    updateRefreshBtnVisibility();
     update();
   });
 
@@ -96,6 +132,7 @@ function setupLLMConfigUI() {
     llmConfig.apiKey = apiKeyInput.value.trim();
     saveLLMConfig(llmConfig);
     updateLLMStatusBadge();
+    updateRefreshBtnVisibility();
   });
 
   baseUrlInput.addEventListener('change', () => {
@@ -128,6 +165,10 @@ function setupLLMConfigUI() {
       statusEl.className = 'llm-status error';
     }
   });
+
+  refreshBtn.addEventListener('click', () => {
+    forceRefreshLLM();
+  });
 }
 
 function updateLLMStatusBadge() {
@@ -139,13 +180,44 @@ function updateLLMStatusBadge() {
   }
 }
 
+function updateRefreshBtnVisibility() {
+  const btn = document.getElementById('btnRefreshLLM')!;
+  btn.classList.toggle('hidden', !isLLMAvailable(llmConfig));
+}
+
+// ── LLM Status Display ──────────────────────────────────────
+function setLLMCallStatus(status: LLMStatus) {
+  const el = document.getElementById('llmCallStatus');
+  if (!el) return;
+
+  const labels: Record<LLMStatus, string> = {
+    idle: 'idle',
+    generating: 'generating\u2026',
+    error: 'error',
+  };
+
+  el.textContent = `LLM: ${labels[status]}`;
+  el.className = `llm-call-status llm-call-${status}`;
+
+  // Dev call counter
+  const counter = document.getElementById('llmCallCount');
+  if (counter) {
+    counter.textContent = `calls: ${llm.callCount()}`;
+  }
+}
+
+// ── Stop all LLM work ───────────────────────────────────────
+function stopLLMWork() {
+  llm.stopAll();
+  setLLMCallStatus('idle');
+}
+
 // ── Build LLM Context ───────────────────────────────────────
 function buildLLMContext(
-  risks: ReturnType<typeof computeRisks>,
+  risks: RiskScores,
   interventionLevel: 1 | 2 | 3 | 4,
   topFactors: string[]
 ): LLMMessageContext {
-  // Update resident profile cognitive concern level dynamically
   residentProfile.cognitiveConcernLevel = urgencyBand(risks.cognitive);
 
   return {
@@ -161,13 +233,96 @@ function buildLLMContext(
   };
 }
 
-// ── Core Update ─────────────────────────────────────────────
+// ── Meaningful-change gated LLM trigger ─────────────────────
+function maybeRequestLLM(
+  intervention: InterventionOutput,
+  risks: RiskScores,
+  explanation: ExplanationOutput,
+) {
+  // Gate: skip during simulation, when LLM off, or level too low
+  if (simRunning) return;
+  if (!isLLMAvailable(llmConfig)) return;
+  if (intervention.level < 2) {
+    // Level 1 → no LLM needed, stop any pending work
+    stopLLMWork();
+    lastLLMMessages = null;
+    return;
+  }
+
+  // Compute signature and check for meaningful change
+  const sig = computeContextSignature(intervention, risks, explanation, timelineEvents);
+  if (sig === prevSignature) return; // No change → skip
+  prevSignature = sig;
+
+  const topFactors = explanation.topFactors.map(f => f.factor);
+  const ctx = buildLLMContext(risks, intervention.level, topFactors);
+  setLLMCallStatus('generating');
+
+  llm.request(ctx, llmConfig, handleLLMResult, handleLLMError);
+}
+
+// Force refresh: bypasses signature check and debounce
+function forceRefreshLLM() {
+  if (!isLLMAvailable(llmConfig)) return;
+  if (!lastIntervention || !lastRisks || !lastExplanation) return;
+  if (lastIntervention.level < 2) return;
+
+  prevSignature = ''; // Reset so next auto-check also works
+  const topFactors = lastExplanation.topFactors.map(f => f.factor);
+  const ctx = buildLLMContext(lastRisks, lastIntervention.level, topFactors);
+  setLLMCallStatus('generating');
+
+  llm.forceRequest(ctx, llmConfig, handleLLMResult, handleLLMError);
+}
+
+// LLM result/error handlers — re-render panels WITHOUT calling update()
+function handleLLMResult(msgs: LLMGeneratedMessages) {
+  lastLLMMessages = msgs;
+  setLLMCallStatus('idle');
+  rerenderMessagePanels();
+}
+
+function handleLLMError(err: Error) {
+  // Keep last successful messages on error (don't null them out)
+  setLLMCallStatus('error');
+  renderLLMErrorState(err.message);
+}
+
+/** Re-render only the intervention + explanation panels with LLM data */
+function rerenderMessagePanels() {
+  if (!lastIntervention || !lastExplanation) return;
+
+  const source: MessageSource = (lastLLMMessages && isLLMAvailable(llmConfig)) ? 'llm' : 'template';
+  const enriched: EnrichedInterventionOutput = {
+    ...lastIntervention,
+    source,
+    llmExplanation: lastLLMMessages?.explanationText ?? undefined,
+  };
+  if (source === 'llm' && lastLLMMessages) {
+    if (lastLLMMessages.residentMessage !== null) {
+      enriched.residentMessage = lastLLMMessages.residentMessage;
+    }
+    if (lastLLMMessages.staffMessage !== null) {
+      enriched.staffMessage = lastLLMMessages.staffMessage;
+    }
+  }
+
+  renderIntervention(enriched);
+  renderExplanation(lastExplanation, enriched);
+}
+
+// ── Core Update (deterministic only — no LLM calls here) ───
 function update() {
   const devs = computeDeviations(DEFAULT_BASELINE, state);
   const risks = computeRisks(state, devs, DEFAULT_BASELINE);
   const intervention = selectIntervention(state, risks, recentHighCount);
   const explanation = buildExplanation(state, devs, risks, DEFAULT_BASELINE);
   const overallBand = urgencyBand(risks.overall);
+
+  // Cache for LLM panel re-renders
+  lastIntervention = intervention;
+  lastExplanation = explanation;
+  lastRisks = risks;
 
   // Risk cards
   setRiskCard('fallRisk', 'Fall Risk', risks.fall);
@@ -184,7 +339,6 @@ function update() {
     llmExplanation: lastLLMMessages?.explanationText ?? undefined,
   };
 
-  // Apply LLM messages if available
   if (source === 'llm' && lastLLMMessages) {
     if (lastLLMMessages.residentMessage !== null) {
       enriched.residentMessage = lastLLMMessages.residentMessage;
@@ -204,32 +358,8 @@ function update() {
   // Event feed
   renderEventFeed();
 
-  // Trigger LLM generation (debounced)
-  if (isLLMAvailable(llmConfig) && intervention.level >= 2) {
-    const topFactors = explanation.topFactors.map(f => f.factor);
-    const ctx = buildLLMContext(risks, intervention.level, topFactors);
-    llmLoading = true;
-    renderLLMLoadingState();
-
-    debouncedGenerate(
-      ctx,
-      llmConfig,
-      (msgs) => {
-        lastLLMMessages = msgs;
-        llmLoading = false;
-        update(); // re-render with LLM messages
-      },
-      (err) => {
-        llmLoading = false;
-        lastLLMMessages = null;
-        renderLLMErrorState(err.message);
-      }
-    );
-  } else if (isLLMAvailable(llmConfig) && intervention.level < 2) {
-    // Level 1: no LLM needed, clear any pending
-    cancelPending();
-    lastLLMMessages = null;
-  }
+  // LLM: gated trigger (no call during sim, no recursive loop)
+  maybeRequestLLM(intervention, risks, explanation);
 }
 
 function renderIntervention(intervention: EnrichedInterventionOutput) {
@@ -239,7 +369,8 @@ function renderIntervention(intervention: EnrichedInterventionOutput) {
     ? '<span class="source-badge llm-badge">AI-Generated</span>'
     : '<span class="source-badge template-badge">Template</span>';
 
-  const loadingIndicator = llmLoading
+  const isGenerating = llm.status() === 'generating';
+  const loadingIndicator = isGenerating
     ? '<span class="llm-loading-dot"></span>'
     : '';
 
@@ -257,7 +388,7 @@ function renderIntervention(intervention: EnrichedInterventionOutput) {
 }
 
 function renderExplanation(
-  explanation: ReturnType<typeof buildExplanation>,
+  explanation: ExplanationOutput,
   intervention: EnrichedInterventionOutput,
 ) {
   const expEl = document.getElementById('explanationContent')!;
@@ -269,7 +400,6 @@ function renderExplanation(
     </div>`
   ).join('');
 
-  // Use LLM explanation if available, else template
   const narrativeText = intervention.llmExplanation ?? explanation.narrative;
   const narrativeSource = intervention.llmExplanation
     ? '<span class="source-badge llm-badge narrative-badge">AI-Generated</span>'
@@ -282,13 +412,6 @@ function renderExplanation(
       <p class="narrative">${escapeHtml(narrativeText)}</p>
     </div>
   `;
-}
-
-function renderLLMLoadingState() {
-  const badge = document.getElementById('interventionContent')?.querySelector('.source-badge');
-  if (badge && llmLoading) {
-    // The loading dot is already rendered in the intervention header
-  }
 }
 
 function renderLLMErrorState(msg: string) {
@@ -350,10 +473,11 @@ async function runSimulation() {
   simSnapshots = [];
   recentHighCount = 0;
 
-  // Disable LLM during simulation (too many rapid updates)
-  cancelPending();
-  const wasLLM = lastLLMMessages;
+  // Lock out LLM for the entire simulation run
+  simRunning = true;
+  stopLLMWork();
   lastLLMMessages = null;
+  prevSignature = '';
 
   const snapshots = simulate24h(DEFAULT_BASELINE, state);
 
@@ -368,16 +492,16 @@ async function runSimulation() {
       : Math.max(0, recentHighCount - 1);
 
     syncSlidersFromState();
-    update();
+    update(); // LLM gated out by simRunning flag
 
-    await sleep(120);
+    await sleep(120); // yield to browser for repaint
   }
 
-  // Restore LLM state and trigger one final generation
-  lastLLMMessages = wasLLM;
+  // Simulation complete — unlock LLM, do one final update
+  simRunning = false;
   btn.disabled = false;
   btn.textContent = 'Simulate 24h';
-  update();
+  update(); // This will trigger maybeRequestLLM if signature changed
 }
 
 function resetAll() {
@@ -386,7 +510,9 @@ function resetAll() {
   timelineEvents = [];
   simSnapshots = [];
   lastLLMMessages = null;
-  cancelPending();
+  prevSignature = '';
+  simRunning = false;
+  stopLLMWork();
   syncSlidersFromState();
   document.getElementById('vitalsSection')!.classList.toggle('hidden', !state.useWearables);
   (document.getElementById('wearToggle') as HTMLInputElement).checked = state.useWearables;
@@ -405,6 +531,7 @@ function randomize() {
     state.spO2 = 88 + Math.random() * 12;
   }
   lastLLMMessages = null;
+  prevSignature = '';
   syncSlidersFromState();
   update();
 }
@@ -459,7 +586,7 @@ function setSl(id: string, v: number) {
   if (disp) disp.textContent = formatSliderVal(id, v);
 }
 
-function sleep(ms: number) {
+function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
 
@@ -550,12 +677,18 @@ function buildHTML(): string {
 
     <!-- LLM Configuration -->
     <div class="llm-config-section">
-      <div class="control-group toggle-group">
+      <div class="llm-header-row">
         <label class="toggle-label">
           <input type="checkbox" id="llmToggle" />
           <span class="toggle-switch"></span>
           Adaptive LLM Messages
         </label>
+        <button id="btnRefreshLLM" class="btn btn-secondary btn-icon hidden" title="Refresh LLM message now">&#x21bb;</button>
+      </div>
+
+      <div class="llm-status-row">
+        <span id="llmCallStatus" class="llm-call-status llm-call-idle">LLM: idle</span>
+        <span id="llmCallCount" class="llm-call-count"></span>
       </div>
 
       <div id="llmConfigBody" class="llm-config-body hidden">

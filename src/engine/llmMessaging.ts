@@ -100,11 +100,12 @@ ${vitalsNote}
 Generate the JSON response following the system rules.`;
 }
 
-// ── API Call ────────────────────────────────────────────────
+// ── API Call (with AbortSignal) ─────────────────────────────
 
 export async function generateLLMMessages(
   ctx: LLMMessageContext,
-  config: LLMConfig
+  config: LLMConfig,
+  signal?: AbortSignal
 ): Promise<LLMGeneratedMessages> {
   const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
@@ -125,6 +126,7 @@ export async function generateLLMMessages(
       'Authorization': `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!res.ok) {
@@ -139,7 +141,6 @@ export async function generateLLMMessages(
 }
 
 function parseLLMResponse(raw: string): LLMGeneratedMessages {
-  // Strip markdown fences if present
   const cleaned = raw.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
 
   const parsed = JSON.parse(cleaned);
@@ -157,35 +158,127 @@ function parseLLMResponse(raw: string): LLMGeneratedMessages {
   };
 }
 
-// ── Debounced Generator ─────────────────────────────────────
+// ── LLM Call Controller ─────────────────────────────────────
+// Single centralized controller: debounce + abort + status
 
-let pendingTimer: ReturnType<typeof setTimeout> | null = null;
-let abortController: AbortController | null = null;
+export type LLMStatus = 'idle' | 'generating' | 'error';
+
+export interface LLMController {
+  /** Schedule an LLM call (debounced). Aborts any in-flight request first. */
+  request(
+    ctx: LLMMessageContext,
+    config: LLMConfig,
+    onResult: (msgs: LLMGeneratedMessages) => void,
+    onError: (err: Error) => void,
+  ): void;
+  /** Force-trigger immediately (e.g. "Refresh Message" button). */
+  forceRequest(
+    ctx: LLMMessageContext,
+    config: LLMConfig,
+    onResult: (msgs: LLMGeneratedMessages) => void,
+    onError: (err: Error) => void,
+  ): void;
+  /** Kill everything: clear timer, abort fetch, reset to idle. */
+  stopAll(): void;
+  /** Current status */
+  status(): LLMStatus;
+  /** Number of completed API calls (for dev diagnostics) */
+  callCount(): number;
+}
+
+export function createLLMController(debounceMs = 600): LLMController {
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  let abortCtrl: AbortController | null = null;
+  let currentStatus: LLMStatus = 'idle';
+  let calls = 0;
+
+  function clearTimer() {
+    if (timerId !== null) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
+  }
+
+  function abortInflight() {
+    if (abortCtrl) {
+      abortCtrl.abort();
+      abortCtrl = null;
+    }
+  }
+
+  async function execute(
+    ctx: LLMMessageContext,
+    config: LLMConfig,
+    onResult: (msgs: LLMGeneratedMessages) => void,
+    onError: (err: Error) => void,
+  ) {
+    abortInflight();
+    abortCtrl = new AbortController();
+    const signal = abortCtrl.signal;
+
+    currentStatus = 'generating';
+    try {
+      const msgs = await generateLLMMessages(ctx, config, signal);
+      // Only deliver if not aborted between await and here
+      if (!signal.aborted) {
+        calls++;
+        currentStatus = 'idle';
+        onResult(msgs);
+      }
+    } catch (err) {
+      if ((err as Error).name === 'AbortError' || (signal && signal.aborted)) {
+        // Silently swallow aborts — caller already moved on
+        return;
+      }
+      currentStatus = 'error';
+      onError(err as Error);
+    }
+  }
+
+  return {
+    request(ctx, config, onResult, onError) {
+      clearTimer();
+      timerId = setTimeout(() => {
+        timerId = null;
+        execute(ctx, config, onResult, onError);
+      }, debounceMs);
+    },
+
+    forceRequest(ctx, config, onResult, onError) {
+      clearTimer();
+      execute(ctx, config, onResult, onError);
+    },
+
+    stopAll() {
+      clearTimer();
+      abortInflight();
+      currentStatus = 'idle';
+    },
+
+    status() {
+      return currentStatus;
+    },
+
+    callCount() {
+      return calls;
+    },
+  };
+}
+
+// ── Legacy exports (kept for compat, delegate to a default controller) ──
+
+const _default = createLLMController();
 
 export function debouncedGenerate(
   ctx: LLMMessageContext,
   config: LLMConfig,
   onResult: (msgs: LLMGeneratedMessages) => void,
   onError: (err: Error) => void,
-  delayMs = 800
+  _delayMs = 800
 ): void {
-  if (pendingTimer) clearTimeout(pendingTimer);
-  if (abortController) abortController.abort();
-
-  pendingTimer = setTimeout(async () => {
-    abortController = new AbortController();
-    try {
-      const msgs = await generateLLMMessages(ctx, config);
-      onResult(msgs);
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        onError(err as Error);
-      }
-    }
-  }, delayMs);
+  _default.request(ctx, config, onResult, onError);
 }
 
 export function cancelPending(): void {
-  if (pendingTimer) clearTimeout(pendingTimer);
-  if (abortController) abortController.abort();
+  _default.stopAll();
 }
