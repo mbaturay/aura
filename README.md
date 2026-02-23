@@ -20,7 +20,7 @@ A browser-based simulator that models an ambient AI system for assisted-living e
 
 ## Tech Stack
 
-|----------|-----------------------------------------------|
+
 | Layer    | Choice                                        |
 |----------|-----------------------------------------------|
 | Bundler  | Vite 7                                        |
@@ -29,7 +29,7 @@ A browser-based simulator that models an ambient AI system for assisted-living e
 | Charts   | Hand-rolled SVG (zero dependencies)           |
 | LLM      | OpenAI-compatible chat completions (optional) |
 | Fonts    | DM Sans (Google Fonts)                        |
-|----------|-----------------------------------------------|
+
 
 ## Getting Started
 
