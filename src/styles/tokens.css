@@ -1,0 +1,90 @@
+/* ═══════════════════════════════════════════════════════════
+   AURA Design Tokens — Clinical Serenity
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Palette ──────────────────────────────────────────── */
+  --c-bg:           #F7F9FB;
+  --c-bg-raised:    #FFFFFF;
+  --c-bg-inset:     #F1F4F8;
+  --c-bg-overlay:   rgba(15, 23, 42, 0.04);
+
+  --c-text:         #0F172A;
+  --c-text-2:       #334155;
+  --c-text-muted:   #64748B;
+  --c-text-dim:     #94A3B8;
+  --c-text-inv:     #FFFFFF;
+
+  --c-border:       #E2E8F0;
+  --c-border-focus: #0F766E;
+  --c-divider:      #EEF2F6;
+
+  --c-teal:         #0F766E;
+  --c-teal-light:   #CCFBF1;
+  --c-teal-bg:      #F0FDFA;
+  --c-teal-hover:   #0D6B63;
+
+  --c-blue:         #2563EB;
+  --c-blue-light:   #DBEAFE;
+  --c-blue-bg:      #EFF6FF;
+
+  --c-green:        #16A34A;
+  --c-green-light:  #BBF7D0;
+  --c-green-bg:     #F0FDF4;
+
+  --c-amber:        #D97706;
+  --c-amber-light:  #FDE68A;
+  --c-amber-bg:     #FFFBEB;
+
+  --c-red:          #DC2626;
+  --c-red-light:    #FECACA;
+  --c-red-bg:       #FEF2F2;
+
+  /* ── Typography ───────────────────────────────────────── */
+  --ff-base:        'DM Sans', system-ui, -apple-system, sans-serif;
+  --fw-regular:     400;
+  --fw-medium:      500;
+  --fw-semibold:    600;
+  --fw-bold:        700;
+
+  --fs-xs:          0.6875rem;   /* 11px */
+  --fs-sm:          0.8125rem;   /* 13px */
+  --fs-base:        0.875rem;    /* 14px */
+  --fs-lg:          1rem;        /* 16px */
+  --fs-xl:          1.25rem;     /* 20px */
+  --fs-2xl:         1.75rem;     /* 28px */
+  --fs-3xl:         2.25rem;     /* 36px */
+
+  --lh-tight:       1.2;
+  --lh-normal:      1.5;
+  --lh-relaxed:     1.65;
+
+  /* ── Spacing ──────────────────────────────────────────── */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+
+  /* ── Radius ───────────────────────────────────────────── */
+  --r-sm:   6px;
+  --r-md:   10px;
+  --r-lg:   14px;
+  --r-xl:   18px;
+  --r-full: 9999px;
+
+  /* ── Shadows ──────────────────────────────────────────── */
+  --shadow-xs:    0 1px 2px rgba(15,23,42,0.04);
+  --shadow-sm:    0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.03);
+  --shadow-md:    0 4px 12px rgba(15,23,42,0.07), 0 1px 3px rgba(15,23,42,0.04);
+  --shadow-lg:    0 8px 24px rgba(15,23,42,0.08), 0 2px 6px rgba(15,23,42,0.04);
+  --shadow-focus: 0 0 0 3px rgba(15,118,110,0.18);
+
+  /* ── Transitions ──────────────────────────────────────── */
+  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast:     150ms;
+  --dur-normal:   200ms;
+  --dur-slow:     300ms;
+}

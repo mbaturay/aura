@@ -1,0 +1,443 @@
+/* ═══════════════════════════════════════════════════════════
+   AURA Component Styles
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Card ────────────────────────────────────────────────── */
+
+.card {
+  background: var(--c-bg-raised);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur-normal) var(--ease-out),
+              transform var(--dur-normal) var(--ease-out);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.card-title {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-text-muted);
+  margin: 0 0 var(--sp-4);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.card-title::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--c-teal);
+  flex-shrink: 0;
+}
+
+/* ── Button ──────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 9px 16px;
+  font-family: var(--ff-base);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  border-radius: var(--r-md);
+  border: none;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+  outline: none;
+  position: relative;
+}
+
+.btn:focus-visible {
+  box-shadow: var(--shadow-focus);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--c-teal);
+  color: var(--c-text-inv);
+}
+
+.btn-primary:hover {
+  background: var(--c-teal-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: var(--c-teal-bg);
+  color: var(--c-teal);
+}
+
+.btn-secondary:hover {
+  background: var(--c-teal-light);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
+}
+
+.btn-ghost:hover {
+  background: var(--c-bg-inset);
+  border-color: var(--c-text-dim);
+}
+
+/* ── Toggle Switch ───────────────────────────────────────── */
+
+.toggle-label {
+  display: flex !important;
+  align-items: center;
+  gap: var(--sp-3);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-2);
+  user-select: none;
+}
+
+.toggle-label input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch {
+  width: 40px;
+  height: 22px;
+  background: var(--c-border);
+  border-radius: var(--r-full);
+  position: relative;
+  transition: background var(--dur-normal) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  transition: transform var(--dur-normal) var(--ease-out);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.toggle-label input:checked + .toggle-switch {
+  background: var(--c-teal);
+}
+
+.toggle-label input:checked + .toggle-switch::after {
+  transform: translateX(18px);
+}
+
+.toggle-label input:focus-visible + .toggle-switch {
+  box-shadow: var(--shadow-focus);
+}
+
+/* ── Text Input ──────────────────────────────────────────── */
+
+.text-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-family: var(--ff-base);
+  font-size: var(--fs-sm);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-bg);
+  color: var(--c-text);
+  outline: none;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.text-input:focus {
+  border-color: var(--c-teal);
+  box-shadow: var(--shadow-focus);
+}
+
+.text-input::placeholder {
+  color: var(--c-text-dim);
+}
+
+.text-input[type="password"] {
+  font-family: ui-monospace, SFMono-Regular, 'Cascadia Code', monospace;
+  letter-spacing: 0.08em;
+}
+
+/* ── Slider ──────────────────────────────────────────────── */
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--c-border);
+  outline: none;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--c-teal);
+  border: 2.5px solid white;
+  box-shadow: 0 1px 4px rgba(15,118,110,0.35);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast);
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+  box-shadow: 0 2px 8px rgba(15,118,110,0.4);
+}
+
+.slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--shadow-focus), 0 1px 4px rgba(15,118,110,0.35);
+}
+
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--c-teal);
+  border: 2.5px solid white;
+  box-shadow: 0 1px 4px rgba(15,118,110,0.35);
+  cursor: pointer;
+}
+
+/* ── KPI / Risk Tile ─────────────────────────────────────── */
+
+.risk-card {
+  background: var(--c-bg-raised);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur-normal) var(--ease-out),
+              border-color var(--dur-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.risk-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+.band-border-low::before    { background: var(--c-green); }
+.band-border-medium::before { background: var(--c-amber); }
+.band-border-high::before   { background: var(--c-red); }
+
+.risk-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.risk-card.overall {
+  background: linear-gradient(160deg, var(--c-bg-raised) 60%, var(--c-teal-bg) 100%);
+}
+
+.risk-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-muted);
+  margin-bottom: var(--sp-2);
+}
+
+.risk-score {
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  margin-bottom: var(--sp-2);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text);
+}
+
+.overall-score {
+  color: var(--c-teal);
+}
+
+.risk-band {
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 10px;
+  border-radius: var(--r-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.risk-band::before {
+  content: '';
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.band-low            { background: var(--c-green-bg); color: var(--c-green); }
+.band-low::before    { background: var(--c-green); }
+.band-medium         { background: var(--c-amber-bg); color: var(--c-amber); }
+.band-medium::before { background: var(--c-amber); }
+.band-high           { background: var(--c-red-bg); color: var(--c-red); }
+.band-high::before   { background: var(--c-red); }
+
+/* ── Status Chip ─────────────────────────────────────────── */
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  background: var(--c-bg-inset);
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
+}
+
+.status-chip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-text-dim);
+}
+
+.status-chip.active::before {
+  background: var(--c-teal);
+  animation: chip-pulse 1.5s ease-in-out infinite;
+}
+
+.status-chip.error::before {
+  background: var(--c-red);
+}
+
+@keyframes chip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Source Badges ────────────────────────────────────────── */
+
+.source-badge {
+  font-size: 9px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: var(--r-sm);
+  margin-left: auto;
+}
+
+.llm-badge {
+  background: linear-gradient(135deg, var(--c-teal), #0EA5E9);
+  color: white;
+}
+
+.template-badge {
+  background: var(--c-bg-inset);
+  color: var(--c-text-dim);
+  border: 1px solid var(--c-divider);
+}
+
+.narrative-badge {
+  display: inline-block;
+  margin-bottom: var(--sp-2);
+}
+
+/* ── Section Header (for control groups) ─────────────────── */
+
+.section-header {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-text-dim);
+  margin: var(--sp-4) 0 var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--c-divider);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.section-header:first-child {
+  margin-top: 0;
+}
+
+.section-header svg {
+  width: 14px;
+  height: 14px;
+  color: var(--c-teal);
+  flex-shrink: 0;
+}
+
+/* ── Intervention Level Steps ────────────────────────────── */
+
+.int-steps {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.int-step {
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--c-border);
+  transition: background var(--dur-normal);
+}
+
+.int-step.filled {
+  background: var(--c-teal);
+}
+
+.int-step.filled.warn {
+  background: var(--c-amber);
+}
+
+.int-step.filled.danger {
+  background: var(--c-red);
+}

@@ -374,9 +374,21 @@ function renderIntervention(intervention: EnrichedInterventionOutput) {
     ? '<span class="llm-loading-dot"></span>'
     : '';
 
+  // Step indicator: 4 pills showing level progression
+  const steps = [1, 2, 3, 4].map(i => {
+    let cls = 'int-step';
+    if (i <= intervention.level) {
+      cls += ' filled';
+      if (i >= 3) cls += ' warn';
+      if (i >= 4) cls += ' danger';
+    }
+    return `<div class="${cls}"></div>`;
+  }).join('');
+
   intEl.innerHTML = `
     <div class="int-level level-${intervention.level}">
       <span class="level-badge">Level ${intervention.level}</span>
+      <div class="int-steps">${steps}</div>
       <span class="level-label">${intervention.levelLabel}</span>
       ${sourceBadge}
       ${loadingIndicator}
@@ -473,6 +485,11 @@ async function runSimulation() {
   simSnapshots = [];
   recentHighCount = 0;
 
+  // Update status chip
+  const simChip = document.getElementById('simStatusChip')!;
+  simChip.textContent = 'Running';
+  simChip.className = 'status-chip active';
+
   // Lock out LLM for the entire simulation run
   simRunning = true;
   stopLLMWork();
@@ -501,6 +518,8 @@ async function runSimulation() {
   simRunning = false;
   btn.disabled = false;
   btn.textContent = 'Simulate 24h';
+  simChip.textContent = 'Complete';
+  simChip.className = 'status-chip';
   update(); // This will trigger maybeRequestLLM if signature changed
 }
 
@@ -513,6 +532,10 @@ function resetAll() {
   prevSignature = '';
   simRunning = false;
   stopLLMWork();
+
+  const simChip = document.getElementById('simStatusChip')!;
+  simChip.textContent = 'Idle';
+  simChip.className = 'status-chip';
   syncSlidersFromState();
   document.getElementById('vitalsSection')!.classList.toggle('hidden', !state.useWearables);
   (document.getElementById('wearToggle') as HTMLInputElement).checked = state.useWearables;
@@ -602,62 +625,74 @@ function buildHTML(): string {
 <header class="app-header">
   <div class="header-inner">
     <div class="logo">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-        <circle cx="14" cy="14" r="13" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
-        <circle cx="14" cy="14" r="8" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-        <circle cx="14" cy="14" r="3.5" fill="currentColor" opacity="0.8"/>
-      </svg>
+      <div class="logo-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" opacity="0.4"/>
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" opacity="0.5"/>
+        </svg>
+      </div>
       <span class="logo-text">AURA</span>
     </div>
-    <span class="header-subtitle">Ambient Care Simulator &mdash; Senior Living Prototype</span>
-    <span id="llmActiveBadge" class="header-llm-badge hidden">LLM Active</span>
+    <div class="header-divider"></div>
+    <span class="header-subtitle">Ambient Care Simulator</span>
+    <div class="header-chips">
+      <span id="simStatusChip" class="status-chip">Idle</span>
+      <span id="llmActiveBadge" class="header-llm-badge hidden">LLM Active</span>
+    </div>
   </div>
 </header>
 
 <main class="layout">
   <!-- LEFT COLUMN: Controls -->
   <aside class="controls-panel">
-    <h2 class="panel-title">Scenario Controls</h2>
+    <h2 class="panel-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+      Scenario Controls
+    </h2>
 
+    <div class="section-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      Time
+    </div>
     <div class="control-group">
       <label>Time of Day <span id="timeVal" class="slider-val"></span></label>
       <input type="range" id="timeSlider" class="slider" />
       <div class="slider-labels"><span>00:00</span><span>12:00</span><span>24:00</span></div>
     </div>
 
+    <div class="section-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      Resident Signals
+    </div>
     <div class="control-group">
       <label>Mobility Stability <span id="mobilityVal" class="slider-val"></span></label>
       <input type="range" id="mobilitySlider" class="slider" />
     </div>
-
     <div class="control-group">
       <label>Restlessness <span id="restlessnessVal" class="slider-val"></span></label>
       <input type="range" id="restlessnessSlider" class="slider" />
     </div>
-
     <div class="control-group">
       <label>Speech Clarity Drift <span id="speechVal" class="slider-val"></span></label>
       <input type="range" id="speechSlider" class="slider" />
     </div>
-
     <div class="control-group">
       <label>Social Isolation Trend <span id="socialVal" class="slider-val"></span></label>
       <input type="range" id="socialSlider" class="slider" />
     </div>
 
-    <div class="control-group">
-      <label>Staff Load <span id="staffLoadVal" class="slider-val"></span></label>
-      <input type="range" id="staffLoadSlider" class="slider" />
+    <div class="section-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Wearables
     </div>
-
     <div class="control-group toggle-group">
       <label class="toggle-label">
         <input type="checkbox" id="wearToggle" />
         <span class="toggle-switch"></span>
-        Use Wearables
+        Enable Wearable Vitals
       </label>
     </div>
-
     <div id="vitalsSection" class="vitals-section hidden">
       <div class="control-group">
         <label>Heart Rate <span id="hrVal" class="slider-val"></span></label>
@@ -669,6 +704,15 @@ function buildHTML(): string {
       </div>
     </div>
 
+    <div class="section-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      Staff
+    </div>
+    <div class="control-group">
+      <label>Staff Load <span id="staffLoadVal" class="slider-val"></span></label>
+      <input type="range" id="staffLoadSlider" class="slider" />
+    </div>
+
     <div class="btn-row">
       <button id="btnSimulate" class="btn btn-primary">Simulate 24h</button>
       <button id="btnRandomize" class="btn btn-secondary">Randomize</button>
@@ -677,11 +721,15 @@ function buildHTML(): string {
 
     <!-- LLM Configuration -->
     <div class="llm-config-section">
+      <div class="section-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        LLM Messaging
+      </div>
       <div class="llm-header-row">
         <label class="toggle-label">
           <input type="checkbox" id="llmToggle" />
           <span class="toggle-switch"></span>
-          Adaptive LLM Messages
+          Adaptive Messages
         </label>
         <button id="btnRefreshLLM" class="btn btn-secondary btn-icon hidden" title="Refresh LLM message now">&#x21bb;</button>
       </div>
@@ -708,14 +756,13 @@ function buildHTML(): string {
           <button id="btnTestLLM" class="btn btn-secondary btn-sm">Test Connection</button>
           <span id="llmStatus" class="llm-status"></span>
         </div>
-        <p class="llm-hint">Key is stored in localStorage only. Uses OpenAI-compatible chat completions API. Works with local models (Ollama, LM Studio) via custom base URL.</p>
+        <p class="llm-hint">Key stored locally. Compatible with OpenAI, Ollama, LM Studio.</p>
       </div>
     </div>
   </aside>
 
   <!-- RIGHT COLUMN: Outputs -->
   <section class="output-panel">
-    <!-- Risk Cards -->
     <div class="risk-grid">
       <div id="fallRisk" class="risk-card"></div>
       <div id="cogRisk" class="risk-card"></div>
@@ -723,19 +770,16 @@ function buildHTML(): string {
       <div id="overallRisk" class="risk-card overall"></div>
     </div>
 
-    <!-- Intervention -->
     <div class="card">
       <h3 class="card-title">Intervention Output</h3>
       <div id="interventionContent"></div>
     </div>
 
-    <!-- Explanation -->
     <div class="card">
       <h3 class="card-title">Why This Decision?</h3>
       <div id="explanationContent"></div>
     </div>
 
-    <!-- Charts -->
     <div class="charts-row">
       <div class="card chart-card">
         <h3 class="card-title">Baseline vs Current</h3>
@@ -747,7 +791,6 @@ function buildHTML(): string {
       </div>
     </div>
 
-    <!-- Event Timeline -->
     <div class="card">
       <h3 class="card-title">Event Timeline</h3>
       <div id="eventFeed" class="event-feed"></div>
@@ -756,7 +799,7 @@ function buildHTML(): string {
 </main>
 
 <footer class="app-footer">
-  <p>AURA-Senior prototype &mdash; for demonstration purposes only. Not a medical device.</p>
+  <p>AURA-Senior &mdash; Prototype for demonstration only. Not a medical device.</p>
 </footer>
   `;
 }

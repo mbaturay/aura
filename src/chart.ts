@@ -2,9 +2,9 @@ import type { ResidentBaseline, CurrentState, SimulationSnapshot } from './types
 
 const COLORS = {
   baseline: '#64748b',
-  current: '#6366f1',
+  current: '#0F766E',
   baselineFill: 'rgba(100,116,139,0.15)',
-  currentFill: 'rgba(99,102,241,0.15)',
+  currentFill: 'rgba(15,118,110,0.12)',
 };
 
 export function renderComparisonChart(
@@ -92,7 +92,7 @@ export function renderTimelineChart(
   for (const [s, e] of nightRanges) {
     const x1 = pad.left + (s / 24) * plotW;
     const x2 = pad.left + (e / 24) * plotW;
-    svg += `<rect x="${x1}" y="${pad.top}" width="${x2 - x1}" height="${plotH}" fill="rgba(99,102,241,0.06)"/>`;
+    svg += `<rect x="${x1}" y="${pad.top}" width="${x2 - x1}" height="${plotH}" fill="rgba(15,118,110,0.05)"/>`;
   }
 
   // Grid
