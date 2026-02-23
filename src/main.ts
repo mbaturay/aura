@@ -799,7 +799,7 @@ function buildHTML(): string {
 </main>
 
 <footer class="app-footer">
-  <p>AURA-Senior &mdash; Prototype for demonstration only. Not a medical device.</p>
+  <p>(c)2026 - Murat Baturay / AURA-Senior &mdash; Prototype for demonstration only. Not a medical device.</p>
 </footer>
   `;
 }
